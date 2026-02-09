@@ -36,6 +36,8 @@ from laplace_server.protocol import DEVICE_GAS
 from core.conversions import (
     propar_to_bar, bar_to_propar, valve_raw_to_percent
 )
+from core.device import Device
+
 
 def load_configuration():
     config = configparser.ConfigParser()
@@ -337,7 +339,8 @@ class Bronkhost(QMainWindow):
             # Or print an error, etc.
             print("Error: No COM port was provided.")
             return  # Stop initialization
-
+        self.device = Device(com)
+        
         self.config = config  # Store config for later use
 
         super(Bronkhost, self).__init__(parent)
