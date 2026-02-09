@@ -525,13 +525,13 @@ class Bronkhost(QMainWindow):
         self.serv.start()
 
         # 5. Connect thread signals
-        self.threadFlow.MEAS.connect(self.aff)
-        self.threadFlow.MEAS.connect(self.updateServ)
-        self.threadFlow.VALVE1_MEAS.connect(self.update_inlet_valve_display)
+        self.threadFlow.pressure_signal.connect(self.aff)
+        self.threadFlow.pressure_signal.connect(self.updateServ)
+        self.threadFlow.valve_signal.connect(self.update_inlet_valve_display)
         self.threadFlow.DEBUG_MEAS.connect(self.update_debug_display)
-        self.threadFlow.MEAS.connect(self.plot_window.update_plot)
-        self.threadFlow.DEVICE_STATUS_UPDATE.connect(self.update_device_status)
-        self.threadFlow.CRITICAL_ALARM.connect(self.handle_critical_alarm)
+        self.threadFlow.pressure_signal.connect(self.plot_window.update_plot)
+        self.threadFlow.alarm_signal.connect(self.update_device_status)
+        self.threadFlow.critical_alarm.connect(self.handle_critical_alarm)
 
         self.win.title_2.setText('Pressure Control')
 
