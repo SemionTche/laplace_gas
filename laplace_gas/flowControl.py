@@ -27,7 +27,6 @@ from PyQt6.QtCore import Qt
 from collections import deque
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-import configparser
 
 from laplace_server.server_lhc import ServerLHC
 from laplace_server.protocol import DEVICE_GAS
@@ -39,52 +38,6 @@ from core.conversions import (
 from core.device import Device
 from core.thread_flow import ThreadFlow
 from core.controller import FlowController
-
-
-def load_configuration():
-    config = configparser.ConfigParser()
-    # This gets the directory of the current python script file
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, 'config.ini')
-
-    # Default values in case file is missing
-    defaults = {
-        'Connection': {'default_com_port': 'COM1'},
-        'Safety': {
-            'max_set_pressure': '100.0',
-            'set_point_above_tolerance': '1',
-            'set_point_above_delay': '2',
-            'set_point_above_safety_enable': '1',
-            'purge_shut_delay_timeout': '7'
-            # ----------------------
-        },
-        'Thread': {'thread_sleep_time': '0.2'},
-        'Plotting': {
-            'max_history': '24000',
-            'default_duration': '10',
-
-        },
-        'Security': {'admin_password': 'appli'},
-        'UI': {'window_title': 'LOA Pressure Control'}
-    }
-
-    # Load the file
-    # Read from the absolute path
-    if os.path.exists(config_path):
-        print(f"Loading config from: {config_path}")  # Debug print
-        config.read(config_path)
-    else:
-        print(f"Config not found at {config_path}, creating defaults.")
-        config.read_dict(defaults)
-        with open(config_path, 'w') as f:
-            config.write(f)
-
-    return config
-
-
-# Load config globally or pass it down
-#APP_CONFIG = load_configuration()
-
 
 
 # --- Auto-detect COM ports ---
