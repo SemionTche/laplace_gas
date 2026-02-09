@@ -13,6 +13,7 @@ import qdarkstyle
 
 # project
 from utils.get_config import load_configuration
+from utils.get_com_port import get_com_port
 from core.device import Device
 
 
@@ -21,8 +22,7 @@ def main():
     app.setStyleSheet(qdarkstyle.load_stylesheet())
 
     config = load_configuration()
-    print(config)
-    port = select_com_port(config)
+    port = get_com_port(config)
 
     device = Device(port)
     controller = Controller(device, config)

@@ -38,6 +38,8 @@ from core.conversions import (
 from core.device import Device
 from core.thread_flow import ThreadFlow
 from core.controller import FlowController
+from utils.get_config import load_configuration
+from utils.get_com_port import get_com_port
 
 
 # --- Auto-detect COM ports ---
@@ -1383,46 +1385,8 @@ if __name__ == '__main__':
 
     main_window = None
     APP_CONFIG = load_configuration()
-    default_port = APP_CONFIG['Connection'].get('default_com_port', '')
-
-    while True:  # Start the selection loop
-        #available_ports = [port.device for port in serial.tools.list_ports.comports()]
-        ports_objects = serial.tools.list_ports.comports()
-        available_ports = [port.device for port in ports_objects]
-
-        if not available_ports:
-            QMessageBox.critical(None, "Connection Error",
-                                 "No COM ports found. Please ensure your device is connected.")
-            sys.exit()  # Exit if no ports are found at all
-
-        # --- SORTING MAGIC ---
-        # If the default port is in the list, move it to index 0
-        if default_port in available_ports:
-            available_ports.insert(0, available_ports.pop(available_ports.index(default_port)))
-
-        selected_port, ok = QInputDialog.getItem(
-            None, "Select COM Port",
-            "Connect to Bronkhorst device on:",
-            available_ports, 0, False
-        )
-
-        if ok and selected_port:
-            print(f"Attempting to connect to {selected_port}...")
-            # Create a temporary instance to check the connection
-            main_window = Bronkhost(com=selected_port, config=APP_CONFIG)
-            #main_window = Bronkhost(com=selected_port,name="LOA Pressure Control")
-
-            # Check the flag we created. If it's True, the connection worked.
-            if main_window.connection_successful:
-                break  # Exit the loop on success
-            else:
-                # If connection failed, the error message from __init__ was already shown.
-                # The loop will now repeat, showing the selection dialog again.
-                continue
-        else:
-            # If the user clicks "Cancel" on the dialog
-            main_window = None  # Ensure no window is shown
-            break  # Exit the loop
+    port = get_com_port()
+    main_window = Bronkhost(com=port, config=APP_CONFIG)
 
     # The loop is finished, now we check if we have a valid window
     if main_window and main_window.connection_successful:
