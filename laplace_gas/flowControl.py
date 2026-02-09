@@ -38,6 +38,7 @@ from core.conversions import (
 )
 from core.device import Device
 from core.thread_flow import ThreadFlow
+from core.controller import FlowController
 
 
 def load_configuration():
@@ -341,6 +342,7 @@ class Bronkhost(QMainWindow):
             print("Error: No COM port was provided.")
             return  # Stop initialization
         self.device = Device(com)
+        self.controller = FlowController(self.device, self.config)
 
         self.config = config  # Store config for later use
 
@@ -884,72 +886,31 @@ class Bronkhost(QMainWindow):
             QMessageBox.warning(self, "Access Denied", "Incorrect password.")
 
     def read_device_info(self):
-        """Reads the capacity and unit from the instrument to calculate absolute values."""
-        try:
-            self.instrument_mutex.lock()  # <--- ADD LOCK
-            try:
-                capacity = self.instrument.readParameter(21)
-                unit = self.instrument.readParameter(129)
-                user_tag_raw = self.instrument.readParameter(115)
-            finally:
-                self.instrument_mutex.unlock()
+        capacity, unit = self.controller.read_device_info()
 
-            if capacity is not None:
-                self.capacity = float(capacity)
-                print(f"Device Capacity Read: {self.capacity}")
+        # --- Setpoint limits ---
+        effective_max = self.controller.get_effective_max_pressure()
 
-                # Default to a high number (or self.capacity) if missing in config
-                safety_limit = self.config['Safety'].getfloat('max_set_pressure', self.capacity)
+        self.win.setpoint.setMaximum(effective_max)
+        self.win.setpoint.setDecimals(2)
+        self.win.setpoint.setToolTip(
+            f"Config limited to {effective_max} (Physical: {capacity})"
+        )
 
-                # Determine the effective maximum:
-                # It is the LOWER of the physical device limit and the config safety limit
-                effective_max = min(self.capacity, safety_limit)
+        # --- Unit label ---
+        self.win.unit_label.setText(unit)
+        self.win.unit_label.setStyleSheet("font-size: 16pt; color: white;")
 
-                print(f"Safety Limit: {safety_limit} | Effective UI Max: {effective_max}")
-                # --- Configure the setpoint box's range and precision ---
-                if hasattr(self.win, 'setpoint'):
-                    self.win.setpoint.setMaximum(effective_max)
-                    self.win.setpoint.setDecimals(2)
-                    self.win.setpoint.setToolTip(f"Config limited to {effective_max} (Physical: {self.capacity})")
-            else:
-                print("Warning: Could not read device capacity (param 21).")
+        # --- User tag ---
+        user_tag_raw = self.device.read(130)   # or wherever it comes from
+        user_tag = self.controller.normalize_user_tag(user_tag_raw)
 
-            if unit is not None:
-                self.unit = str(unit).strip()  # .strip() removes leading/trailing whitespace
-                print(f"Device Unit Read: '{self.unit}'")
-                # --- Set the dedicated unit label ---
-                if hasattr(self.win, 'unit_label'):
-                    self.win.unit_label.setText(self.unit)
-                    self.win.unit_label.setStyleSheet("font-size: 16pt; color: white;")
-            else:
-                print("Warning: Could not read device unit (param 129).")
+        self.update_user_tag_label(user_tag)
 
-            if user_tag_raw is not None:
-                if isinstance(user_tag_raw, (bytes, bytearray)):
-                    try:
-                        user_tag = user_tag_raw.decode('utf-8', errors='ignore')
-                    except Exception:
-                        user_tag = str(user_tag_raw)
-                else:
-                    user_tag = str(user_tag_raw)
-                self.update_user_tag_label(user_tag)
-            if user_tag_raw is not None:
-                if isinstance(user_tag_raw, (bytes, bytearray)):
-                    try:
-                        user_tag = user_tag_raw.decode('utf-8', errors='ignore')
-                    except Exception:
-                        user_tag = str(user_tag_raw)
-                else:
-                    user_tag = str(user_tag_raw)
+        if self.plot_window is not None:
+            self.plot_window.update_title(user_tag)
 
-                # 1. Update the Main Window Label (Existing code)
-                self.update_user_tag_label(user_tag)
 
-                # 2. NEW: Update the Plot Window Title
-                if self.plot_window is not None:
-                    self.plot_window.update_title(user_tag)
-        except Exception as e:
-            print(f"Error reading device info: {e}")
 
     def configure_response_alarm(self):
         """
@@ -1288,6 +1249,15 @@ class Bronkhost(QMainWindow):
             self.win.inlet_valve_label.setText("...")
         if hasattr(self.win, 'label_In_Out'):
             self.win.label_In_Out.setStyleSheet("color: gray;")
+
+    def setPoint(self):
+        if self.is_offline:
+            return
+
+        value = self.win.setpoint.value()
+        self.controller.set_setpoint_bar(value)
+        self.plot_window.set_setpoint_value(value)
+
 
     def setPoint(self):
         # *** Guard against running while offline ***
