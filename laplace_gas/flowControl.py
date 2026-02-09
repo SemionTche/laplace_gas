@@ -32,6 +32,11 @@ import configparser
 from laplace_server.server_lhc import ServerLHC
 from laplace_server.protocol import DEVICE_GAS
 
+# project
+from core.conversions import (
+    propar_to_bar, bar_to_propar, valve_raw_to_percent
+)
+
 def load_configuration():
     config = configparser.ConfigParser()
     # This gets the directory of the current python script file
@@ -117,11 +122,6 @@ except ImportError:
 from PyQt6.QtWidgets import QDoubleSpinBox
 from PyQt6.QtCore import Qt, QTimer
 
-def calculate_valve_percentage(raw_valve_output):
-    """Converts the raw valve output (param 55) to a percentage."""
-    max_val = 16777215
-    norm = 100 * (100 / 61.67)
-    return float(norm * (raw_valve_output / max_val))
 
 class Stream(QtCore.QObject):
     """Redirects console output to a QTextEdit widget."""
@@ -699,7 +699,7 @@ class Bronkhost(QMainWindow):
                 try:
                     valve1_output = self.instrument.readParameter(55)
                     if valve1_output is not None:
-                        current_valve_value = calculate_valve_percentage(valve1_output)
+                        current_valve_value = valve_raw_to_percent(valve1_output)
                         self.update_inlet_valve_display(current_valve_value)
                     else:
                         if hasattr(self.win, 'inlet_valve_label'):
@@ -977,14 +977,14 @@ class Bronkhost(QMainWindow):
             # --- Convert Tolerance Bar to Integer ---
             # This scales the bar value against the device capacity.
             # Example: 5 bar on 100 bar device -> (5/100)*32000 = 1600
-            dev_above_int = self.bar_to_propar(tol_bar, self.capacity)
+            dev_above_int = bar_to_propar(tol_bar, self.capacity)
             # -------------------------------------------------------
 
             # Deviation Below (Min Limit) - Set to max to ignore
             dev_below_int = 32000
 
             # Safe Setpoint Integer
-            safe_setpoint_int = self.bar_to_propar(safe_pressure_bar, self.capacity)
+            safe_setpoint_int = bar_to_propar(safe_pressure_bar, self.capacity)
 
             print(f"Response Alarm Enable = {self.response_alarm_enabled}")
             print(f"Tolerance: {tol_bar} bar (Int: {dev_above_int})")
@@ -1008,7 +1008,7 @@ class Bronkhost(QMainWindow):
 
     def read_initial_setpoint(self):
         raw_setpoint = self.instrument.readParameter(9)
-        bar_setpoint = self.propar_to_bar(raw_setpoint, self.capacity)
+        bar_setpoint = propar_to_bar(raw_setpoint, self.capacity)
         self.last_known_setpoint = bar_setpoint
         self.win.setpoint.blockSignals(True)
         self.win.setpoint.setValue(bar_setpoint)
@@ -1239,7 +1239,7 @@ class Bronkhost(QMainWindow):
                 self.instrument_mutex.unlock()
 
             if valve1_output is not None:
-                current_valve_value = calculate_valve_percentage(valve1_output)
+                current_valve_value = valve_raw_to_percent(valve1_output)
                 self.update_inlet_valve_display(current_valve_value)
             else:
                 if hasattr(self.win, 'inlet_valve_label'):
@@ -1294,7 +1294,7 @@ class Bronkhost(QMainWindow):
         self.plot_window.set_setpoint_value(bar_setpoint)
 
         if self.capacity > 0:
-            propar_value = self.bar_to_propar(bar_setpoint, self.capacity)
+            propar_value = bar_to_propar(bar_setpoint, self.capacity)
             self.instrument_mutex.lock()
             try:
                 self.instrument.writeParameter(9, propar_value)
@@ -1411,19 +1411,6 @@ class Bronkhost(QMainWindow):
                     self.instrument_mutex.unlock()
         event.accept()
 
-    def propar_to_bar(self, propar_value, capacity):  # Added 'capacity' argument
-        """Converts a raw Propar value (0-32000) to the absolute unit (bar)."""
-        if propar_value is None or capacity == 0:
-            return 0.0
-        return (float(propar_value) / 32000.0) * capacity
-
-    def bar_to_propar(self, bar_value, capacity):  # Added 'capacity' argument
-        """Converts an absolute unit (bar) to a raw Propar value (0-32000)."""
-        if bar_value is None or capacity == 0:
-            return 0
-        propar_float = (bar_value / capacity) * 32000.0
-        return int(max(0.0, min(32000.0, propar_float)))
-
     def show_help_window(self):
         """
         Creates and shows an independent help window.
@@ -1468,7 +1455,7 @@ class THREADFlow(QtCore.QThread):
         super(THREADFlow, self).__init__(parent)
         self.parent = parent
         self.instrument = self.parent.instrument
-        self.propar_to_bar_func = self.parent.propar_to_bar
+        self.propar_to_bar_func = propar_to_bar
         self.capacity = capacity
         self.stop = False
         self.thread_sleep_time = float(thread_sleep_time)
@@ -1524,7 +1511,7 @@ class THREADFlow(QtCore.QThread):
                 # --- Emission Logic (Valve) ---
                 if valve1_output is not None:
                     # Ensure the helper function is accessible here
-                    current_valve_value = calculate_valve_percentage(valve1_output)
+                    current_valve_value = valve_raw_to_percent(valve1_output)
                     self.VALVE1_MEAS.emit(current_valve_value)
 
                 # --- SMART SLEEP (Drift Correction) ---
