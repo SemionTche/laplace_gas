@@ -22,7 +22,6 @@ from PyQt6.QtGui import QIcon
 import sys
 import time
 import qdarkstyle
-from PyQt6.QtCore import Qt
 
 from collections import deque
 import warnings
@@ -42,44 +41,10 @@ from utils.get_config import load_configuration
 from utils.get_com_port import get_com_port
 
 
-# --- Auto-detect COM ports ---
-
-try:
-    import serial.tools.list_ports
-except ImportError:
-    # If pyserial is not installed, show an error message and exit.
-    # A QApplication instance is needed to show a QMessageBox.
-    app = QApplication(sys.argv)
-    error_box = QMessageBox()
-    error_box.setIcon(QMessageBox.Critical)
-    error_box.setText("Required Library Missing")
-    error_box.setInformativeText(
-        "The 'pyserial' library is needed to detect COM ports.\n\n"
-        "Please install it by running this command in your terminal:\n"
-        "<b>pip install pyserial</b>"
-    )
-    error_box.setWindowTitle("Dependency Error")
-    error_box.exec_()
-    sys.exit(1)
-
 # --- Real-time plotting ---
-try:
-    import pyqtgraph as pg
-except ImportError:
-    app = QApplication(sys.argv)
-    error_box = QMessageBox()
-    error_box.setIcon(QMessageBox.Critical)
-    error_box.setText("Required Library Missing")
-    error_box.setInformativeText(
-        "The 'pyqtgraph' library is needed for plotting.\n\n"
-        "Please install it by running this command in your terminal:\n"
-        "<b>pip install pyqtgraph</b>"
-    )
-    error_box.setWindowTitle("Dependency Error")
-    error_box.exec_()
-    sys.exit(1)
-from PyQt6.QtWidgets import QDoubleSpinBox
-from PyQt6.QtCore import Qt, QTimer
+import pyqtgraph as pg
+
+from PyQt6.QtCore import QTimer
 
 
 class Stream(QtCore.QObject):
@@ -93,24 +58,6 @@ class Stream(QtCore.QObject):
         # This is needed for compatibility.
         pass
 
-class EnterSpinBox(QDoubleSpinBox):
-    """
-    A custom QDoubleSpinBox that clears the text selection after
-    the user presses the Enter key.
-    """
-    def __init__(self, parent=None):
-        super(EnterSpinBox, self).__init__(parent)
-
-    def keyPressEvent(self, event):
-        # First, let the original QDoubleSpinBox handle the key press
-        super(EnterSpinBox, self).keyPressEvent(event)
-
-        # Now, check if the key that was just pressed was Enter or Return
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            # QTimer.singleShot(0, ...) waits until the current event is
-            # finished and then runs our command. This is necessary because
-            # the selection happens immediately after our event runs.
-            QTimer.singleShot(0, self.lineEdit().deselect)
 
 
 class TimeAxisItem(pg.AxisItem):
@@ -144,6 +91,7 @@ class TimeAxisItem(pg.AxisItem):
             except Exception:
                 strings.append('')
         return strings
+
 
 class PlotWindow(QMainWindow):
     # ... (other code)
@@ -196,32 +144,6 @@ class PlotWindow(QMainWindow):
         # 6. Initialize Setpoint State
         self.current_setpoint = 0.0
 
-
-
-
-        def tickStrings(self, values, scale, spacing):
-            """
-            Formats the tick values (which are seconds from self.start_time)
-            into HH:MM:SS strings.
-            """
-            strings = []
-            for value in values:
-                try:
-                    # Convert the float time-in-seconds to a datetime.timedelta object
-                    td = dt.timedelta(seconds=value)
-
-                    # Format the timedelta object into HH:MM:SS
-                    # We need to manually handle hours greater than 23
-                    total_seconds = int(td.total_seconds())
-                    hours, remainder = divmod(total_seconds, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-
-                    # Format: Hours padded to 2 digits, Minutes padded to 2 digits, Seconds padded to 2 digits
-                    strings.append(f'{hours:02d}:{minutes:02d}:{seconds:02d}')
-                except OverflowError:
-                    # Fallback for extremely large values
-                    strings.append('')
-            return strings
 
     def update_title(self, user_tag=""):
         """Updates the plot title to include the User Tag if available."""
@@ -485,7 +407,7 @@ class Bronkhost(QMainWindow):
         self.threadFlow.pressure_signal.connect(self.aff)
         self.threadFlow.pressure_signal.connect(self.updateServ)
         self.threadFlow.valve_signal.connect(self.update_inlet_valve_display)
-        self.threadFlow.DEBUG_MEAS.connect(self.update_debug_display)
+        # self.threadFlow.DEBUG_MEAS.connect(self.update_debug_display)
         self.threadFlow.pressure_signal.connect(self.plot_window.update_plot)
         self.threadFlow.alarm_signal.connect(self.update_device_status)
         self.threadFlow.critical_alarm.connect(self.handle_critical_alarm)
@@ -1385,7 +1307,7 @@ if __name__ == '__main__':
 
     main_window = None
     APP_CONFIG = load_configuration()
-    port = get_com_port()
+    port = get_com_port(APP_CONFIG)
     main_window = Bronkhost(com=port, config=APP_CONFIG)
 
     # The loop is finished, now we check if we have a valid window
