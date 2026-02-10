@@ -15,6 +15,14 @@ class FlowController(QObject):
         self.device = device
         self.config = config
 
+        log.info("Reading initial device status...")
+        initial_status = self.device.read(28)
+        if initial_status is not None:
+            binary_string = bin(initial_status)[2:].zfill(8)
+            log.info(f"Initial device status (param 28): Value={initial_status}, Bits={binary_string}")
+        else:
+            log.warning("Could not read initial device status.")
+
         # --- Alarm Cooldown Timer ---
         self.rearm_timer = QTimer(self)
         self.rearm_timer.setSingleShot(True)
