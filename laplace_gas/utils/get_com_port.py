@@ -1,32 +1,48 @@
-# utils/get_com_port.py
+# libraries
 import sys
+from configparser import ConfigParser
+
+from laplace_log import log
 from PyQt6.QtWidgets import QApplication, QInputDialog, QMessageBox
 import serial.tools.list_ports
+
+
+# project
 from core.device import Device, DeviceError
-from laplace_log import log
 
 
-def get_com_port(config) -> str:
+def get_com_port(config: ConfigParser) -> str:
     """
-    Detects and selects the COM port to use for the Bronkhorst device.
-    1. Reads default port from config.
-    2. Lists all available COM ports.
-    3. Moves default port to first position if available.
-    4. Shows a dialog for the user to select.
-    5. Loops until a working connection is made or user cancels.
+    Prompt the user to select a COM port and verify communication with a
+    Bronkhorst device.
+
+    The function lists available serial ports, prioritizes the default port
+    from the configuration, and attempts to connect by reading the device
+    serial number. The selection dialog is shown repeatedly until a working
+    device is found or the user cancels.
+
+    Returns:
+        str: The validated COM port name.
+
+    Exits:
+        Exits the application if no ports are available or the user cancels.
     """
     log.debug("Selecting COM port...")
     default_port = config['Connection'].get('default_com_port', '')
 
     app = QApplication.instance() or QApplication(sys.argv)
 
+    # display the window until selection
     while True:
+
         # List available ports
         available_ports = [p.device for p in serial.tools.list_ports.comports()]
 
         if not available_ports:
-            QMessageBox.critical(None, "Connection Error",
-                                 "No COM ports found. Please ensure your device is connected.")
+            QMessageBox.critical(
+                None, "Connection Error",
+                "No COM ports found. Please ensure your device is connected."
+            )
             sys.exit(1)
 
         # Move default port to first position if present
@@ -46,28 +62,37 @@ def get_com_port(config) -> str:
 
         if selected_port:
             log.info(f"Attempting to connect to {selected_port}...")
+            
             try:
-                # Test the device by reading the serial number (param 1)
-                device_test = Device(selected_port)
-                serial_number = device_test.read(1)
-                if serial_number is None:
-                    raise ConnectionError("Device is not responding on this port.")
+                
+                device_test = Device(selected_port)   # make a test device
+                serial_number = device_test.read(1)   # try to acces to the serial number
+                device_test.close()                   # close the test device
+                
+                if serial_number is None:             # if there is no serial device
+                    raise ConnectionError("Device is not responding on this port.")  # the connection failed
                 
                 log.info(f"Successfully connected to device on {selected_port}, serial: {serial_number}")
+
                 return selected_port
-            except DeviceError as e:
+            
+            except (DeviceError, ConnectionError) as e: # if a connection error was raised
                 log.warning(f"DeviceError on {selected_port}: {e}")
                 QMessageBox.critical(
-                    None,
-                    "Connection Error",
-                    f"Failed to connect to {selected_port}.\n\nError: {e}\nPlease try another port."
+                    None, "Connection Error",
+                    f"Failed to connect to {selected_port}.\n\n"
+                    f"Error: {e}\n"
+                    f"Please try another port."
                 )
-                continue
-            except Exception as e:
+                continue            # let the user select another port
+            
+            except Exception as e:  # if another error was raised
                 log.warning(f"Unexpected error on {selected_port}: {e}")
                 QMessageBox.critical(
                     None,
                     "Unexpected Error",
-                    f"Failed to connect to {selected_port}.\n\nError: {e}\nPlease try another port."
+                    f"Unexpected error when trying to connect to {selected_port}.\n\n"
+                    f"Error: {e}\n"
+                    f"Please try another port."
                 )
-                continue
+                continue            # let the user select another port

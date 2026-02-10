@@ -2,6 +2,8 @@
 from pathlib import Path
 from configparser import ConfigParser
 
+from laplace_log import log
+
 
 def load_configuration() -> ConfigParser:
     """
@@ -13,6 +15,7 @@ def load_configuration() -> ConfigParser:
     Returns:
         ConfigParser: Loaded configuration object.
     """
+    log.debug("Loading configuration...")
     config = ConfigParser()  # creat the config instance
 
     # config.ini lives next to main.py
@@ -48,4 +51,6 @@ def load_configuration() -> ConfigParser:
         with config_path.open("w") as f:  # write the default config inside
             config.write(f)
 
+
+    log.debug("Configuration loaded.")
     return config
