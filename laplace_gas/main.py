@@ -26,13 +26,11 @@ if __name__ == "__main__":
 
     config = load_configuration()
     port = get_com_port(config)
-
     device = Device(port)
     
+    # main window
     window = GasWindow(device, config)
     window.show()
-
-    # controller = Controller(device, config)
 
     # end the process
     exit_code = app.exec()
