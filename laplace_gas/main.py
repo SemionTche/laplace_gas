@@ -1,8 +1,7 @@
+# libraries
 import sys
 import logging
 
-from PyQt6.QtWidgets import QApplication
-import qdarkstyle
 from laplace_log.log_lhc import LoggerLHC, log
 from laplace_server.protocol import LOGGER_NAME
 
@@ -10,6 +9,9 @@ LoggerLHC("laplace.gas", file_level="debug", console_level="info")
 log.info("Starting OptWindow...")
 
 logging.getLogger(LOGGER_NAME).setLevel(logging.INFO)
+
+from PyQt6.QtWidgets import QApplication
+import qdarkstyle
 
 # project
 from utils.get_config import load_configuration
@@ -25,9 +27,10 @@ if __name__ == "__main__":
     port = get_com_port(config)
 
     device = Device(port)
-    controller = Controller(device, config)
+    print("passed")
+    # controller = Controller(device, config)
 
-    window = MainWindow(controller, config)
-    window.show()
+    # window = MainWindow(controller, config)
+    # window.show()
 
     sys.exit(app.exec())

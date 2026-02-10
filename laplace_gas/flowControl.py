@@ -30,6 +30,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 from laplace_server.server_lhc import ServerLHC
 from laplace_server.protocol import DEVICE_GAS
 
+from laplace_log import LoggerLHC, log
+LoggerLHC("laplace.flowControl", file_level="debug", console_level="info")
+log.info("Starting FlowControl...")
+
 # project
 from core.conversions import (
     propar_to_bar, bar_to_propar, valve_raw_to_percent
