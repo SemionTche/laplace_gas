@@ -43,7 +43,7 @@ from core.thread_flow import ThreadFlow
 from core.controller import FlowController
 from utils.get_config import load_configuration
 from utils.get_com_port import get_com_port
-
+from interface.widgets.enterSpinBox import EnterSpinBox
 
 # --- Real-time plotting ---
 import pyqtgraph as pg
@@ -223,16 +223,17 @@ class Bronkhost(QMainWindow):
             print("Error: No COM port was provided.")
             return  # Stop initialization
         self.device = Device(com)
+        self.config = config  # Store config for later use
         self.controller = FlowController(self.device, self.config)
 
-        self.config = config  # Store config for later use
+        
 
         super(Bronkhost, self).__init__(parent)
         self.is_offline = False
         self.connection_successful = False
         p = pathlib.Path(__file__)
         sepa = os.sep
-        self.win = uic.loadUi('flow.ui', self)
+        self.win = uic.loadUi(str(p.parent /'flow.ui'), self)
 
         # --- GROUPING RADIO BUTTONS ---
         # This ensures they are mutually exclusive and easier to manage

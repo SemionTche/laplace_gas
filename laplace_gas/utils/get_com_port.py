@@ -72,12 +72,12 @@ def get_com_port(config: ConfigParser) -> str:
                 if serial_number is None:             # if there is no serial device
                     raise ConnectionError("Device is not responding on this port.")  # the connection failed
                 
-                log.info(f"Successfully connected to device on {selected_port}, serial: {serial_number}")
+                log.info(f"Device successfully connected on {selected_port}, serial: {serial_number}")
 
                 return selected_port
             
             except (DeviceError, ConnectionError) as e: # if a connection error was raised
-                log.warning(f"DeviceError on {selected_port}: {e}")
+                log.warning(f"ConnectionError on {selected_port}: {e}")
                 QMessageBox.critical(
                     None, "Connection Error",
                     f"Failed to connect to {selected_port}.\n\n"
