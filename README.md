@@ -42,6 +42,14 @@ This project is built with **Python 3.10.19** and requires the following package
     ```bash
     pip install pyqtgraph
     ```
+* **laplace-log**: For log saving.
+    ```bash
+    pip install laplace-log
+    ```
+* **laplace-server**: To enable communication with master.
+    ```bash
+    pip install laplace-server
+    ```
 
 ---
 
