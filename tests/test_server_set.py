@@ -38,5 +38,5 @@ def test_set_gas_position(
 
 
 if __name__ == "__main__":
-    position = 6.0
+    position = 2.0
     test_set_gas_position("tcp://147.250.140.65:1122", position=position)
