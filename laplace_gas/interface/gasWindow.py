@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QTimer
 from PyQt6.uic import loadUi
+from PyQt6.QtGui import QIcon
 
 from laplace_log import log
 
@@ -31,7 +32,7 @@ class GasWindow(QMainWindow):
 
         p = pathlib.Path(__file__)
         self.win = loadUi(str(p.parent / "flow.ui"), self)
-
+        self.icon = p.parent / "icons"  # icons folder
 
 
         self.is_offline = False
@@ -47,6 +48,7 @@ class GasWindow(QMainWindow):
         self.setup_logs()
         self.controller = FlowController(self.device, self.config)
         self.setup_controls()
+        self.setup_ui()
     
 
     def setup_logs(self):
@@ -81,6 +83,44 @@ class GasWindow(QMainWindow):
         self.controller.purge_finalized.connect(self.win.radioShut.isChecked)
 
         # self.controller.alarm_triggered.connect(self._on_alarm_triggered)
+
+
+    def setup_ui(self):
+        title = self.config['UI'].get('window_title', 'LOA Pressure Control')
+        self.setWindowTitle(f"{title} v{__version__}")
+        
+        self.setWindowIcon(QIcon(str(self.icon / 'LOA3.png')))
+        self.raise_() # give keyboard focus
+
+        self.alarm_popup_active = False
+        self.read_device_info()
+    
+
+    def read_device_info(self):
+        capacity, unit = self.controller.read_device_info()
+
+        # --- Setpoint limits ---
+        effective_max = self.controller.get_effective_max_pressure()
+
+        self.win.setpoint.setMaximum(effective_max)
+        self.win.setpoint.setDecimals(2)
+        self.win.setpoint.setToolTip(
+            f"Config limited to {effective_max} (Physical: {capacity})"
+        )
+
+        # --- Unit label ---
+        self.win.unit_label.setText(unit)
+        self.win.unit_label.setStyleSheet("font-size: 16pt; color: white;")
+
+        # --- User tag ---
+        user_tag_raw = self.device.read(130)   # or wherever it comes from
+        user_tag = self.controller.normalize_user_tag(user_tag_raw)
+
+        self.update_user_tag_label(user_tag)
+
+        if self.plot_window is not None:
+            self.plot_window.update_title(user_tag)
+
 
     
     def _toggle_status_label_visibility(self):

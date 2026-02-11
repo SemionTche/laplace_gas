@@ -1,9 +1,11 @@
+# libraries
 import time
 from configparser import ConfigParser
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal, QMutex
 
 from laplace_log import log
 
+# project
 from core.device import Device
 
 
@@ -23,7 +25,7 @@ class FlowController(QObject):
         else:
             log.warning("Could not read initial device status.")
 
-        # --- Alarm Cooldown Timer ---
+        ### Alarm Cooldown Timer
         self.rearm_timer = QTimer(self)
         self.rearm_timer.setSingleShot(True)
         self.rearm_timer.timeout.connect(self._reenable_alarm)
@@ -31,18 +33,32 @@ class FlowController(QObject):
         self.lower_setpoint_cooldown = 2.0  # Default value, updated later from config
         self.is_purging = False
 
-
         self.instrument_mutex = QMutex()
-
 
         self.purge_target = 0.0          # Default target
         self.purge_timeout_limit = 10.0  # Default timeout
 
         self.current_pressure_bar = 0.0  # Stores the latest reading
         self.purge_target = 0.0          # Stores target for check
+        
         self.purge_check_timer = QTimer(self)
         self.purge_check_timer.timeout.connect(self._check_purge_condition)
         self.purge_start_time = 0.0
+
+        ### Read device capacity and units
+        self.capacity = 0.0
+        self.unit = ""
+        self.response_alarm_enabled = False
+
+        self.last_reset_time = 0.0
+
+        # Set valve to closed on startup
+        self.valve_close()
+
+        # read device capacity and units
+        self.read_device_info()
+        self.configure_response_alarm()
+        
 
 
     def read_device_info(self):
@@ -55,6 +71,7 @@ class FlowController(QObject):
         print(f"Device Unit Read: '{self.unit}'")
 
         return self.capacity, self.unit
+
 
 
     def get_effective_max_pressure(self) -> float:
@@ -187,3 +204,68 @@ class FlowController(QObject):
             self.win.inlet_valve_label.setText("...")
         if hasattr(self.win, 'label_In_Out'):
             self.win.label_In_Out.setStyleSheet("color: gray;")
+    
+
+
+    def configure_response_alarm(self):
+        """
+        Configures the Deviation Alarm.
+        TOLERANCE is now defined in BARS.
+        """
+        if self.is_offline:
+            return
+        try:
+            print("--- Loading Config of Response Alarm ---")
+
+            # 1. Read the Enable Flag
+            enable_flag = self.config['Safety'].getboolean('set_point_above_safety_enable', True)
+            self.response_alarm_enabled = enable_flag
+            safe_pressure_bar = self.get_safe_setpoint_bar()
+            # 2. Read Configuration Values
+            tol_bar = self.config['Safety'].getfloat('set_point_above_tolerance', 2.0)
+            self.safety_tolerance_bar = tol_bar
+            print(f"Pressure tolerance: {tol_bar} bars")
+            delay_sec = self.config['Safety'].getint('set_point_above_delay', 2)
+            print(f"Alarm activation delay: {delay_sec} s")
+            # --- Read Cooldown Delay  ---
+            self.lower_setpoint_cooldown = self.config['Safety'].getfloat('set_point_lower_cooldown_delay', 2.0)
+            print(f"Lower Setpoint Cooldown: {self.lower_setpoint_cooldown} s")
+            # ---  Purge Settings Here ---
+            self.purge_timeout_limit = self.config['Safety'].getfloat('purge_shut_delay_timeout', 5.0)
+            print(f"Purge delay timeout={self.purge_timeout_limit} s")
+            print("------")
+            self.purge_target = 0.0  # Hardcoded target
+            print(f"Hardcoded Purge setpoint={self.purge_target} bar")
+
+            # 3. Calculate Device Integers (0-32000)
+
+            # --- Convert Tolerance Bar to Integer ---
+            # This scales the bar value against the device capacity.
+            # Example: 5 bar on 100 bar device -> (5/100)*32000 = 1600
+            dev_above_int = bar_to_propar(tol_bar, self.capacity)
+            # -------------------------------------------------------
+
+            # Deviation Below (Min Limit) - Set to max to ignore
+            dev_below_int = 32000
+
+            # Safe Setpoint Integer
+            safe_setpoint_int = bar_to_propar(safe_pressure_bar, self.capacity)
+
+            print(f"Response Alarm Enable = {self.response_alarm_enabled}")
+            print(f"Tolerance: {tol_bar} bar (Int: {dev_above_int})")
+            print(f"Safe State: {safe_pressure_bar} bar (Int: {safe_setpoint_int})")
+
+            # 4. Send Configuration
+            self.instrument_mutex.lock()  # <--- Lock
+            try:
+                self.instrument.writeParameter(118, 0)  # Disable temporarily
+                self.instrument.writeParameter(116, dev_above_int)
+                self.instrument.writeParameter(117, dev_below_int)
+                self.instrument.writeParameter(121, safe_setpoint_int)
+                self.instrument.writeParameter(120, 1)  # Enable Setpoint Change
+                self.instrument.writeParameter(182, delay_sec)
+            finally:
+
+                self.instrument_mutex.unlock()  # <--- Unlock
+        except Exception as e:
+            print(f"Error configuring alarms: {e}")
