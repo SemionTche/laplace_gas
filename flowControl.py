@@ -32,6 +32,7 @@ import configparser
 
 from laplace_server.server_lhc import ServerLHC
 from laplace_server.protocol import DEVICE_GAS
+from laplace_server.server_controller import ServerController
 
 from laplace_log import LoggerLHC, log
 from laplace_server.protocol import LOGGER_NAME
@@ -532,6 +533,14 @@ class Bronkhost(QMainWindow):
             device=DEVICE_GAS,
             data={}
         )
+        # define the Qt signal from the server
+        self.server_controller = ServerController()
+        self.serv.set_on_position_changed(self.server_controller.on_position_changed)
+        # self.serv.set_on_get(self.server_controller.on_get)
+        
+        self.server_controller.position_changed.connect(
+            self.on_remote_setpoint_received
+        )
         self.serv.start()
 
         # 5. Connect thread signals
@@ -544,6 +553,44 @@ class Bronkhost(QMainWindow):
         self.threadFlow.CRITICAL_ALARM.connect(self.handle_critical_alarm)
 
         self.win.title_2.setText('Pressure Control')
+
+    def on_remote_setpoint_received(self, positions: list):
+        """
+        Called when a CMD_SET is received by the server.
+        Expected payload format: {"positions": [value]}
+        """
+
+        if not positions:
+            log.warning("Remote SET received with empty positions list.")
+            return
+
+        try:
+            new_setpoint = float(positions[0])
+        except (ValueError, TypeError):
+            log.error(f"Invalid remote setpoint received: {positions}")
+            return
+
+        log.info(f"Remote setpoint request received: {new_setpoint} bar")
+
+        # Safety: respect UI limits
+        max_allowed = self.win.setpoint.maximum()
+        min_allowed = self.win.setpoint.minimum()
+
+        if not (min_allowed <= new_setpoint <= max_allowed):
+            log.warning(
+                f"Remote setpoint {new_setpoint} outside allowed range "
+                f"[{min_allowed}, {max_allowed}]"
+            )
+            return
+
+        # Update UI safely (this runs in GUI thread)
+        self.win.setpoint.blockSignals(True)
+        self.win.setpoint.setValue(new_setpoint)
+        self.win.setpoint.blockSignals(False)
+
+        # Apply to device
+        self.setPoint()
+
 
     def reset_alarm_cmd(self):
         """Sends the sequence to reset the instrument alarm."""
